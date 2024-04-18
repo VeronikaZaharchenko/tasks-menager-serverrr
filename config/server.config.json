@@ -1,0 +1,11 @@
+{
+  "host": "localhost",
+  "port": 4000,
+  "access_token": {
+    "secret_key": "ACCESS_TOKEN",
+    "time": 120000
+  },
+  "refresh_token": {
+    "secret_key": "REFRESH_TOKEN",
+    "time": "24h"
+}}

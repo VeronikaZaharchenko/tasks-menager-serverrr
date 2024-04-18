@@ -26,23 +26,28 @@ class AuthorizationRequest {
                     const user = yield database_1.db.query('SELECT * FROM users WHERE login=$1', [
                         login,
                     ]);
-                    if (user.length > 0 && (0, bcrypt_1.compareSync)(password, user[0].password)) {
-                        const accessToken = (0, ganerates_1.generateAccessToken)(user[0].id, login);
-                        const refreshToken = (0, ganerates_1.generateRefreshToken)(user[0].refresh_id);
-                        res.status(200).json({
-                            message: 'Авторизация успешна',
-                            accessToken,
-                            refreshToken,
-                            expireIn: server_config_json_1.access_token.time
-                        });
+                    if (user) {
+                        if (user.length > 0 && (0, bcrypt_1.compareSync)(password, user[0].password)) {
+                            const accessToken = (0, ganerates_1.generateAccessToken)(user[0].id, login);
+                            const refreshToken = (0, ganerates_1.generateRefreshToken)(user[0].refresh_id);
+                            res.status(200).json({
+                                message: 'Авторизация успешна',
+                                accessToken,
+                                refreshToken,
+                                access_expireIn: server_config_json_1.access_token.time,
+                                access_createDate: new Date().getTime()
+                            });
+                        }
+                        else {
+                            res.status(403).json({ message: 'Такого пользователя не существует' });
+                        }
                     }
                     else {
-                        res.status(400).json({ message: 'Такого пользователя не существует' });
+                        res.status(403).json({ message: 'Ошибка сервера' });
                     }
                 }
                 catch (e) {
-                    console.log(e);
-                    res.status(500).json({ message: 'Ошибка сервера' });
+                    res.status(500).json({ message: 'Такого пользователя не существует' });
                 }
             }
             else {
@@ -68,7 +73,8 @@ class AuthorizationRequest {
                     res.status(200).json({ message: 'Пользователь добавлен',
                         accessToken,
                         refreshToken,
-                        expireIn: server_config_json_1.access_token.time
+                        access_expireIn: server_config_json_1.access_token.time,
+                        access_createDate: new Date().getTime()
                     });
                 }
                 catch (e) {

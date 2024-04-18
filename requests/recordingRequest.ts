@@ -1,75 +1,41 @@
-import {IGetTask, ITasksRequest} from "./types";
-import {Response} from "express";
-import {IRequestUser} from "../middlewares/types";
+import {IUpdateToken} from "./types";
+import {Request, Response} from "express";
+import {IUser} from "../middlewares/types";
+import confirmRefreshToken from "../middlewares/confirmRefreshToken";
+import {generateAccessToken, generateRefreshToken} from "../utils/ganerates";
+import { v4 } from "uuid";
+import {access_token} from "../config/server.config.json";
 import {db} from "../database";
 
-class TasksRequest implements ITasksRequest {
-    public async addTask(req: IRequestUser, res: Response) {
-        if (req.body.title && typeof req.body.done === "boolean" && req.user?.id) {
+export class RecordingRequest implements IUpdateToken {
+    public async update(req:Request, res:Response): Promise<void>{
+        if(req.body?.refreshToken){
             try {
-                await db.query("INSERT INTO tasks (title, done, user_id) VALUES ($1, $2, $3)", [
-                    req.body.title,
-                    req.body.done,
-                    req.user.id
-                ]);
-                res.status(200).json({message: 'Задача добавлена'});
-            } catch (e: any) {
-                console.log('Ошибка на сервере:', e.message);
-                res.status(500).json({message: 'Ошибка сервера'});
+                const user:IUser=await confirmRefreshToken(req.body.refreshToken);
+                const accessToken:string=generateAccessToken(user.id,user.login)
+                const refreshId:string=v4()
+                const refreshToken:string=generateRefreshToken(refreshId)
+                try {
+                    await db.query("UPDATE users SET refresh_id=$1 WHERE login=$2",[
+                        refreshId,
+                        user.login
+                    ])
+                    res.status(200).json({message:'Токен обновлён',
+                        accessToken,
+                        refreshToken,
+                        access_expiresIn: access_token.time,
+                        access_createDate: new Date().getTime()
+                    })
+                }catch (e){
+                    res.status(500).json({message:"Ошибка сервера"})
+                }
+            }catch (e){
+                res.status(403).json({message:"Токен не валидный"})
             }
-        } else {
-            res.status(400).json({message: 'Нет данных'});
-        }
-    }
-
-    public async deleteTaskOrTasks(req: IRequestUser, res: Response) {
-        if (req.query.id) {
-            try {
-                await db.query("DELETE FROM tasks WHERE id=$1", [+req.query.id]);
-                res.status(200).json({message: 'Задача удалена'});
-            } catch (e: any) {
-                console.log('Ошибка на сервере:', e.message);
-                res.status(500).json({message: 'Ошибка сервера'});
-            }
-        } else {
-            try {
-                await db.query("DELETE FROM tasks");
-                res.status(200).json({message: 'Задачи удалены'});
-            } catch (e: any) {
-                console.log('Ошибка на сервере:', e.message);
-                res.status(500).json({message: 'Ошибка сервера'});
-            }
-        }
-    }
-
-    public async getTasks(req: IRequestUser, res: Response) {
-        if (req.user) {
-            try {
-                const tasks: IGetTask[] = await db.query("SELECT * FROM tasks WHERE user_id=$1", [req.user.id]);
-                const data: IGetTask[] = tasks;
-                res.status(200).json(data);
-            } catch (e: any) {
-                console.log('Ошибка на сервере:', e.message);
-                res.status(500).json({message: 'Ошибка сервера'});
-            }
-        } else {
-            res.status(500).json({message: 'Ошибка сервера'});
-        }
-    }
-
-    public async updateTask(req: IRequestUser, res: Response) {
-        if (req.body.id && typeof req.body.done === "boolean") {
-            try {
-                await db.query("UPDATE tasks SET done=$1 WHERE id=$2", [req.body.done, req.body.id]);
-                res.status(200).json({message: 'Задача обновлена'});
-            } catch (e: any) {
-                console.log('Ошибка на сервере:', e.message);
-                res.status(500).json({message: 'Ошибка сервера'});
-            }
-        } else {
-            res.status(400).json({message: 'Нет данных'});
+        }else{
+            res.status(400).json({message:"Нет данных"})
         }
     }
 }
 
-export default new TasksRequest();
+export default new RecordingRequest()

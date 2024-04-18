@@ -1,73 +1,75 @@
-import {IAuthorizationRequest} from "./types";
-import {Request, Response} from "express";
-import {compareSync, hashSync} from "bcrypt";
-import {access_token} from './../config/server.config.json'
-import {v4} from 'uuid'
+import {IGetTask, ITasksRequest} from "./types";
+import {Response} from "express";
+import {IRequestUser} from "../middlewares/types";
 import {db} from "../database";
-import {generateAccessToken, generateRefreshToken} from "../utils/ganerates";
-export {db} from '../database/index'
 
-class AuthorizationRequest implements IAuthorizationRequest{
-    public async authorization(req:Request, res:Response){
-        const {login,password}=req.body
-        if(login&&password){
+class TasksRequest implements ITasksRequest {
+    public async addTask(req: IRequestUser, res: Response) {
+        if (req.body.title && typeof req.body.done === "boolean" && req.user?.id) {
             try {
-                const user:any = await db.query('SELECT * FROM users WHERE login=$1',[
-                    login,
-                ])
-                if(compareSync(password,user[0].password)&&user){
-                    const accessToken=generateAccessToken(user[0].id,login)
-                    const refreshToken=generateRefreshToken(user[0].refresh_id)
-                    res.status(200).json({message: 'Авторизация успешна',
-                        accessToken,
-                        refreshToken,
-                        expireIn:access_token.time
-                    })
-                }else {
-                    res.status(400).json({message:'Такого пользователя не существует'})
-                }
-
-            } catch (e) {
-                console.log(e)
-                res.status(500).json({message: 'Ошибка сервера'})
+                await db.query("INSERT INTO tasks (title, done, user_id) VALUES ($1, $2, $3)", [
+                    req.body.title,
+                    req.body.done,
+                    req.user.id
+                ]);
+                res.status(200).json({message: 'Задача добавлена'});
+            } catch (e: any) {
+                console.log('Ошибка на сервере:', e.message);
+                res.status(500).json({message: 'Ошибка сервера'});
             }
-
-        }else{
-            res.status(400).json({message:'Нет данных'})
+        } else {
+            res.status(400).json({message: 'Нет данных'});
         }
-
     }
 
-
-
-    public async registration(req:Request, res:Response){
-        const {login,password}=req.body
-        if(login&&password){
-            const refreshId=v4()
-            const hashPassword=hashSync(password, 10)
+    public async deleteTaskOrTasks(req: IRequestUser, res: Response) {
+        if (req.query.id) {
             try {
-                const user:any = await db.query('INSERT INTO users (login, password, refresh_id) VALUES($1, $2, $3) returning *', [
-                    login,
-                    hashPassword,
-                    refreshId
-                ])
-                const accessToken=generateAccessToken(user[0].id,login)
-                const refreshToken=generateRefreshToken(user[0].refresh_id)
-                res.status(200).json({message: 'Пользователь добавлен',
-                    accessToken,
-                    refreshToken,
-                    expireIn:access_token.time
-                })
-            } catch (e) {
-                console.log(e)
-                res.status(500).json({message: 'Такой пользователь уже есть'})
+                await db.query("DELETE FROM tasks WHERE id=$1", [+req.query.id]);
+                res.status(200).json({message: 'Задача удалена'});
+            } catch (e: any) {
+                console.log('Ошибка на сервере:', e.message);
+                res.status(500).json({message: 'Ошибка сервера'});
             }
-
-        }else{
-            res.status(400).json({message:'Нет данных'})
+        } else {
+            try {
+                await db.query("DELETE FROM tasks");
+                res.status(200).json({message: 'Задачи удалены'});
+            } catch (e: any) {
+                console.log('Ошибка на сервере:', e.message);
+                res.status(500).json({message: 'Ошибка сервера'});
+            }
         }
-
     }
 
+    public async getTasks(req: IRequestUser, res: Response) {
+        if (req.user) {
+            try {
+                const tasks: IGetTask[] = await db.query("SELECT * FROM tasks WHERE user_id=$1", [req.user.id]);
+                const data: IGetTask[] = tasks;
+                res.status(200).json(data);
+            } catch (e: any) {
+                console.log('Ошибка на сервере:', e.message);
+                res.status(500).json({message: 'Ошибка сервера'});
+            }
+        } else {
+            res.status(500).json({message: 'Ошибка сервера'});
+        }
+    }
+
+    public async updateTask(req: IRequestUser, res: Response) {
+        if (req.body.id && typeof req.body.done === "boolean") {
+            try {
+                await db.query("UPDATE tasks SET done=$1 WHERE id=$2", [req.body.done, req.body.id]);
+                res.status(200).json({message: 'Задача обновлена'});
+            } catch (e: any) {
+                console.log('Ошибка на сервере:', e.message);
+                res.status(500).json({message: 'Ошибка сервера'});
+            }
+        } else {
+            res.status(400).json({message: 'Нет данных'});
+        }
+    }
 }
-export default new AuthorizationRequest()
+
+export default new TasksRequest();

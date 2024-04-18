@@ -1,6 +1,5 @@
 import express, {Router} from "express"
-import authorizationRequest from "../requests/authorizationRequest";
+import recordingRequest from "../requests/recordingRequest";
 const router:Router=express.Router()
-   router.post('/signup', authorizationRequest.registration)
-   router.post('/signin', authorizationRequest.authorization)
+   router.post('/',recordingRequest.update)
 export default router
